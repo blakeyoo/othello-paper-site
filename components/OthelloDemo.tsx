@@ -17,8 +17,8 @@ const BOARD_SIZES_ALL: [number, number][]    = [[6, 6], [8, 8], [10, 10], [6, 8]
 
 const K_BY_DIFFICULTY: Record<Difficulty, number[]> = {
   easy:   [-0.01, 1.01],
-  medium: [-0.01, 0.0, 1.0, 1.01],
-  hard:   [-0.01, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.01],
+  medium: [-0.01, 0.2, 0.8, 1.01],
+  hard:   [-0.01, 0.2, 0.4, 0.6, 0.8, 1.01],
 };
 
 function generateObstacles(h: number, w: number): [number, number][] {
@@ -81,6 +81,38 @@ function randomEnv(difficulty: Difficulty): { config: GameConfig; k: number } {
   return { config: { boardSize, obstacles: [], winCond: k }, k };
 }
 
+type Zone = { lo: number; hi: number; type: "win" | "lose" | "draw" };
+
+function getZones(k: number): Zone[] {
+  if (k <= 0) return [
+    { lo: 0,  hi: 50,  type: "win"  },
+    { lo: 50, hi: 100, type: "lose" },
+  ];
+  if (k >= 1) return [
+    { lo: 0,  hi: 50,  type: "lose" },
+    { lo: 50, hi: 100, type: "win"  },
+  ];
+  const pct = Math.round(k * 100);
+  if (k > 0.5) return [
+    { lo: 0,         hi: 100 - pct, type: "draw" },
+    { lo: 100 - pct, hi: 50,        type: "lose" },
+    { lo: 50,        hi: pct,       type: "win"  },
+    { lo: pct,       hi: 100,       type: "draw" },
+  ];
+  return [
+    { lo: 0,         hi: pct,       type: "draw" },
+    { lo: pct,       hi: 50,        type: "win"  },
+    { lo: 50,        hi: 100 - pct, type: "lose" },
+    { lo: 100 - pct, hi: 100,       type: "draw" },
+  ];
+}
+
+const ZONE_COLOR: Record<Zone["type"], string> = {
+  win:  "bg-emerald-500",
+  lose: "bg-red-400",
+  draw: "bg-gray-300",
+};
+
 function describeK(k: number): { label: string; detail: string } {
   if (k < 0)
     return {
@@ -126,12 +158,14 @@ const DIFFICULTY_LABELS: Record<Difficulty, string> = {
 };
 
 export default function OthelloDemo() {
+  const [showOnboarding, setShowOnboarding] = useState(true);
   const [difficulty, setDifficulty]         = useState<Difficulty>("easy");
   const [opponentDiff, setOpponentDiff]     = useState<OpponentDifficulty>("easy");
   const [game, setGame]                 = useState<GameState>(() => createGame(DEFAULT_CONFIG));
   const [currentConfig, setCurrentConfig] = useState<GameConfig>(DEFAULT_CONFIG);
   const [currentK, setCurrentK]         = useState<number>(1.01);
   const [conditionRevealed, setConditionRevealed] = useState(false);
+  const [revealedAtTrial, setRevealedAtTrial]     = useState<number | null>(null);
   const [retryCount, setRetryCount]     = useState(0);
   const [aiThinking, setAiThinking]     = useState(false);
   const [hovered, setHovered]           = useState<[number, number] | null>(null);
@@ -141,13 +175,13 @@ export default function OthelloDemo() {
     setCurrentConfig(config);
     setCurrentK(k);
     setConditionRevealed(false);
+    setRevealedAtTrial(null);
     setRetryCount(0);
     setAiThinking(false);
     setGame(createGame(config));
   }, []);
 
   const retry = useCallback(() => {
-    setConditionRevealed(false);
     setRetryCount((n) => n + 1);
     setAiThinking(false);
     setGame(createGame(currentConfig));
@@ -200,11 +234,37 @@ export default function OthelloDemo() {
   const total      = scores.black + scores.white;
   const blackPct   = total > 0 ? ((scores.black / total) * 100).toFixed(1) : "—";
   const whitePct   = total > 0 ? ((scores.white / total) * 100).toFixed(1) : "—";
+  const blackRatio = total > 0 ? (scores.black / total) * 100 : 50;
   const cellPx     = Math.min(52, Math.floor(400 / Math.max(game.h, game.w)));
 
   return (
     <section id="demo" className="bg-slate-50 py-20 px-6">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
+
+        {showOnboarding ? (
+          <div className="flex flex-col items-center justify-center min-h-80 py-16 text-center space-y-6">
+            <div className="text-6xl font-black tracking-tight text-slate-300 select-none">???</div>
+            <div className="space-y-4 max-w-xl">
+              <p className="text-2xl font-bold text-gray-900 leading-snug">
+                You don&apos;t know how to win.
+              </p>
+              <p className="text-xl font-bold text-gray-900 whitespace-nowrap">
+                How many games will you need to figure out how to win?
+              </p>
+              <p className="text-sm text-gray-500 leading-relaxed">
+                The winning condition is hidden — this isn&apos;t standard Othello.
+                No hints. Just play and figure it out.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowOnboarding(false)}
+              className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors text-sm"
+            >
+              Accept the Challenge →
+            </button>
+          </div>
+        ) : (
+        <>
         <h2 className="text-2xl font-bold text-center mb-1 text-gray-900">
           Interactive Demo
         </h2>
@@ -214,7 +274,56 @@ export default function OthelloDemo() {
 
         <div className="flex flex-col lg:flex-row items-start justify-center gap-8">
           {/* Board — fixed-size wrapper prevents layout shift between board sizes */}
-          <div className="flex items-center justify-center shrink-0" style={{ width: 416, height: 416 }}>
+          <div className="relative flex items-center justify-center shrink-0" style={{ width: 416, height: 416 }}>
+          {game.done && (() => {
+            const resultText  = winner === 1 ? "You Win!" : winner === -1 ? "You Lose!" : "Draw!";
+            const resultColor = winner === 1 ? "text-emerald-500" : winner === -1 ? "text-red-500" : "text-gray-500";
+            const isMinority = currentK < 0.5;
+            const isFirstTrial = retryCount === 0;
+            const isEqualDraw = winner === 0 && scores.black === scores.white;
+            const subText =
+              winner === -1 && isFirstTrial && isMinority
+                ? "Not a Bug — This is NOT the typical Othello you know."
+                : winner === -1 && isFirstTrial && !isMinority
+                ? "Can you beat the AI in the next round?"
+                : winner === 1 && isFirstTrial && !isMinority
+                ? "Can you win again? This game may have SPECIAL rules."
+                : winner === 1 && isFirstTrial && isMinority
+                ? "Not a Bug — This is NOT the typical Othello you know."
+                : isFirstTrial && isEqualDraw
+                ? "Hmph. Same number of discs..."
+                : isFirstTrial
+                ? "You are in the SPECIAL draw zone. Can you figure that out by yourself?"
+                : winner === 1 || winner === -1
+                ? `You tried ${retryCount + 1} times — Can you guess the winning condition?`
+                : isEqualDraw
+                ? `You tried ${retryCount + 1} times — Same number of discs.`
+                : `You tried ${retryCount + 1} times — You are on the special draw zone.`;
+            return (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/95 rounded gap-3 px-8 text-center">
+                <p className={`text-4xl font-black ${resultColor}`}>{resultText}</p>
+                <p className="text-sm text-gray-500">
+                  {subText.split(/(SPECIAL)/g).map((part, i) =>
+                    part === "SPECIAL"
+                      ? <span key={i} className="font-bold text-indigo-600">{part}</span>
+                      : part
+                  )}
+                </p>
+                <button
+                  onClick={retry}
+                  className="mt-2 px-10 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors text-sm"
+                >
+                  Try Again →
+                </button>
+                <button
+                  onClick={() => startNewGame(difficulty)}
+                  className="text-gray-400 hover:text-gray-600 text-sm transition-colors"
+                >
+                  New Game
+                </button>
+              </div>
+            );
+          })()}
           <div
             className="border-2 border-gray-700 shadow-lg"
             style={{
@@ -267,11 +376,33 @@ export default function OthelloDemo() {
           </div>
 
           {/* Side panel */}
-          <div className="flex flex-col gap-5 w-56">
+          <div className="flex flex-col gap-5 w-80">
             {/* Trial counter — always visible */}
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Trial</span>
-              <span className="text-lg font-bold text-indigo-600">{retryCount + 1}</span>
+              <span className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Trial</span>
+              <div className="flex items-center gap-2">
+                <span className="text-base font-bold text-white bg-indigo-600/80 px-3 py-1 rounded-md">
+                  {retryCount + 1}
+                </span>
+                {revealedAtTrial !== null && (
+                  <span className="text-xs font-normal text-gray-400">(Revealed at Trial {revealedAtTrial})</span>
+                )}
+              </div>
+            </div>
+
+            {/* Winning Condition — always visible */}
+            <div
+              onClick={() => { if (game.done && !conditionRevealed) { setConditionRevealed(true); setRevealedAtTrial(retryCount + 1); } }}
+              className={`flex items-center justify-between ${game.done && !conditionRevealed ? "cursor-pointer" : "cursor-default"}`}
+            >
+              <span className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Win Condition</span>
+              {conditionRevealed ? (
+                <span className="text-sm font-semibold text-indigo-600">{describeK(currentK).label}</span>
+              ) : (
+                <span className={`font-bold ${game.done ? "text-sm text-indigo-400 animate-pulse" : "text-sm text-white bg-red-500/80 px-3 py-1 rounded-md"}`}>
+                  {game.done ? "Tap to reveal →" : "???"}
+                </span>
+              )}
             </div>
 
             {/* Scores */}
@@ -290,6 +421,30 @@ export default function OthelloDemo() {
               </div>
             </div>
 
+            {/* Disc ratio bar */}
+            <div>
+              <div className="relative h-2 w-full rounded-full bg-gray-200">
+                <div className="absolute inset-0 rounded-full overflow-hidden">
+                  {conditionRevealed && getZones(currentK).map((z, i) => (
+                    <div
+                      key={i}
+                      className={`absolute h-full ${ZONE_COLOR[z.type]}`}
+                      style={{ left: `${z.lo}%`, width: `${z.hi - z.lo}%` }}
+                    />
+                  ))}
+                </div>
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-indigo-500 shadow z-10 transition-all duration-300"
+                  style={{ left: `${blackRatio}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                <span>0%</span>
+                <span>50%</span>
+                <span>100%</span>
+              </div>
+            </div>
+
             {/* Turn status */}
             <div className="text-sm min-h-5">
               {!game.done && (
@@ -302,53 +457,6 @@ export default function OthelloDemo() {
                 )
               )}
             </div>
-
-            {/* End-of-game card */}
-            {game.done && (() => {
-              const resultText =
-                winner === 1 ? "You win!" : winner === -1 ? "AI wins." : "Draw.";
-              const resultColor =
-                winner === 1 ? "text-emerald-600" : winner === -1 ? "text-red-500" : "text-gray-500";
-              const { label, detail } = describeK(currentK);
-              return (
-                <div className="bg-white border border-gray-200 rounded-xl p-4 text-center shadow-sm space-y-3">
-                  <p className={`text-xl font-bold ${resultColor}`}>{resultText}</p>
-
-                  {conditionRevealed ? (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">
-                        Winning condition
-                      </p>
-                      <p className="text-sm font-semibold text-indigo-600 mb-0.5">{label}</p>
-                      <p className="text-xs text-gray-500">{detail}</p>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setConditionRevealed(true)}
-                      className="w-full border border-indigo-300 text-indigo-600 hover:bg-indigo-50 font-medium py-2 rounded-lg transition-colors text-sm"
-                    >
-                      Reveal Winning Condition?
-                    </button>
-                  )}
-
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      onClick={retry}
-                      disabled={conditionRevealed}
-                      className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-300 disabled:cursor-not-allowed text-white font-medium py-2 rounded-lg transition-colors text-sm"
-                    >
-                      Retry
-                    </button>
-                    <button
-                      onClick={() => startNewGame(difficulty)}
-                      className="flex-1 bg-red-500 hover:bg-red-400 text-white font-medium py-2 rounded-lg transition-colors text-sm"
-                    >
-                      New Game
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
 
             {/* Environment Difficulty toggle */}
             <div>
@@ -397,25 +505,10 @@ export default function OthelloDemo() {
               </div>
             </div>
 
-            {/* Retry / New Game buttons during active game */}
-            {!game.done && (
-              <div className="flex gap-2">
-                <button
-                  onClick={retry}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-lg transition-colors text-sm"
-                >
-                  Retry
-                </button>
-                <button
-                  onClick={() => startNewGame(difficulty)}
-                  className="flex-1 bg-red-500 hover:bg-red-400 text-white font-medium py-2.5 rounded-lg transition-colors text-sm"
-                >
-                  New Game
-                </button>
-              </div>
-            )}
           </div>
         </div>
+        </>
+        )}
       </div>
     </section>
   );
