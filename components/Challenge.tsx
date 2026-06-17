@@ -1,6 +1,6 @@
 export default function Challenge() {
   return (
-    <section id="challenge" className="py-20 px-6 border-b border-gray-100">
+    <section id="challenge" className="py-20 px-6 border-b border-gray-100 bg-gray-50">
       <div className="max-w-3xl mx-auto">
         <h2 className="text-2xl font-bold mb-1 text-gray-900">The Challenge</h2>
         <p className="text-gray-500 text-sm mb-10">When the Objective is Unknown</p>

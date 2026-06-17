@@ -238,7 +238,7 @@ export default function OthelloDemo() {
   const cellPx     = Math.min(52, Math.floor(400 / Math.max(game.h, game.w)));
 
   return (
-    <section id="demo" className="bg-slate-50 py-20 px-6">
+    <section id="demo" className="bg-white py-20 px-6">
       <div className="max-w-6xl mx-auto">
 
         {showOnboarding ? (
@@ -321,6 +321,14 @@ export default function OthelloDemo() {
                 >
                   New Game
                 </button>
+                {retryCount + 1 >= 2 && !conditionRevealed && (
+                  <button
+                    onClick={() => { setConditionRevealed(true); setRevealedAtTrial(retryCount + 1); }}
+                    className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg transition-colors text-sm"
+                  >
+                    Reveal Win Condition
+                  </button>
+                )}
               </div>
             );
           })()}
@@ -381,27 +389,22 @@ export default function OthelloDemo() {
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Trial</span>
               <div className="flex items-center gap-2">
-                <span className="text-base font-bold text-white bg-indigo-600/80 px-3 py-1 rounded-md">
-                  {retryCount + 1}
-                </span>
                 {revealedAtTrial !== null && (
                   <span className="text-xs font-normal text-gray-400">(Revealed at Trial {revealedAtTrial})</span>
                 )}
+                <span className="text-base font-bold text-white bg-indigo-600/80 px-3 py-1 rounded-md">
+                  {retryCount + 1}
+                </span>
               </div>
             </div>
 
             {/* Winning Condition — always visible */}
-            <div
-              onClick={() => { if (game.done && !conditionRevealed) { setConditionRevealed(true); setRevealedAtTrial(retryCount + 1); } }}
-              className={`flex items-center justify-between ${game.done && !conditionRevealed ? "cursor-pointer" : "cursor-default"}`}
-            >
+            <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Win Condition</span>
               {conditionRevealed ? (
                 <span className="text-sm font-semibold text-indigo-600">{describeK(currentK).label}</span>
               ) : (
-                <span className={`font-bold ${game.done ? "text-sm text-indigo-400 animate-pulse" : "text-sm text-white bg-red-500/80 px-3 py-1 rounded-md"}`}>
-                  {game.done ? "Tap to reveal →" : "???"}
-                </span>
+                <span className="text-sm font-bold text-white bg-red-500/80 px-3 py-1 rounded-md">???</span>
               )}
             </div>
 
