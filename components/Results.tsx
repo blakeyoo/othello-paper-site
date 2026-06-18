@@ -1,85 +1,79 @@
 type WDL = { w: number; d: number; l: number };
 
 const PPO_CONDITIONS: {
-  label: string;
-  note: string;
-  random: WDL;
-  am: WDL;
-  mcts: WDL;
+  label: string; blitz: boolean; note: string;
+  random: WDL; am: WDL; mcts: WDL;
 }[] = [
-  { label: "Majority (K > 1.0)",       note: "",
+  { label: "Majority (K > 1.0)",        blitz: false, note: "",
     random: { w: 78.6, d:  2.9, l: 18.6 },
     am:     { w: 14.3, d:  0.0, l: 85.7 },
     mcts:   { w: 17.1, d:  2.1, l: 80.7 } },
-  { label: "Minority (K < 0)",          note: "",
-    random: { w: 75.0, d:  2.9, l: 22.1 },
-    am:     { w:  7.1, d:  0.0, l: 92.9 },
-    mcts:   { w:  5.7, d:  0.7, l: 93.6 } },
-  { label: "Majority / Blitz",          note: "",
-    random: { w: 61.4, d: 20.0, l: 18.6 },
-    am:     { w:  0.0, d: 14.3, l: 85.7 },
-    mcts:   { w: 16.4, d: 15.0, l: 68.6 } },
-  { label: "Minority / Blitz",          note: "",
-    random: { w: 65.7, d: 18.6, l: 15.7 },
-    am:     { w:  7.1, d: 14.3, l: 78.6 },
-    mcts:   { w: 25.0, d: 10.0, l: 65.0 } },
-  { label: "Majority < 80% (K = 0.8)", note: "",
+  { label: "Majority < 80% (K = 0.8)",  blitz: false, note: "",
     random: { w: 68.6, d: 10.0, l: 21.4 },
     am:     { w:  7.1, d: 28.6, l: 64.3 },
     mcts:   { w: 15.7, d:  5.0, l: 79.3 } },
-  { label: "Minority > 20% (K = 0.2)", note: "",
-    random: { w: 70.7, d:  9.3, l: 20.0 },
-    am:     { w: 21.4, d: 14.3, l: 64.3 },
-    mcts:   { w:  6.4, d:  3.6, l: 90.0 } },
-  { label: "Majority < 60% (K = 0.6)", note: "narrow",
+  { label: "Majority < 60% (K = 0.6)",  blitz: false, note: "narrow",
     random: { w: 23.6, d: 52.9, l: 23.6 },
     am:     { w:  7.1, d: 92.9, l:  0.0 },
     mcts:   { w:  2.9, d: 23.6, l: 73.6 } },
-  { label: "Minority > 40% (K = 0.4)", note: "narrow",
+  { label: "Minority > 40% (K = 0.4)",  blitz: false, note: "narrow",
     random: { w: 26.4, d: 57.9, l: 15.7 },
     am:     { w:  7.1, d: 78.6, l: 14.3 },
     mcts:   { w:  3.6, d: 28.6, l: 67.9 } },
+  { label: "Minority > 20% (K = 0.2)",  blitz: false, note: "",
+    random: { w: 70.7, d:  9.3, l: 20.0 },
+    am:     { w: 21.4, d: 14.3, l: 64.3 },
+    mcts:   { w:  6.4, d:  3.6, l: 90.0 } },
+  { label: "Minority (K < 0.0)",         blitz: false, note: "",
+    random: { w: 75.0, d:  2.9, l: 22.1 },
+    am:     { w:  7.1, d:  0.0, l: 92.9 },
+    mcts:   { w:  5.7, d:  0.7, l: 93.6 } },
+  { label: "Majority / Blitz (K > 1.0)", blitz: true,  note: "",
+    random: { w: 61.4, d: 20.0, l: 18.6 },
+    am:     { w:  0.0, d: 14.3, l: 85.7 },
+    mcts:   { w: 16.4, d: 15.0, l: 68.6 } },
+  { label: "Minority / Blitz (K < 0.0)", blitz: true,  note: "",
+    random: { w: 65.7, d: 18.6, l: 15.7 },
+    am:     { w:  7.1, d: 14.3, l: 78.6 },
+    mcts:   { w: 25.0, d: 10.0, l: 65.0 } },
 ];
 
 const CONDITIONS: {
-  label: string;
-  note: string;
-  random: WDL;
-  ppo: WDL;
-  mcts: WDL;
+  label: string; blitz: boolean; note: string;
+  random: WDL; ppo: WDL; mcts: WDL;
 }[] = [
-  { label: "Majority (K > 1.0)",       note: "",
+  { label: "Majority (K > 1.0)",        blitz: false, note: "",
     random: { w: 95.7, d:  1.4, l:  2.9 },
     ppo:    { w: 85.7, d:  0.0, l: 14.3 },
     mcts:   { w: 78.6, d:  0.7, l: 20.7 } },
-  { label: "Minority (K < 0)",          note: "",
-    random: { w: 94.3, d:  2.1, l:  3.6 },
-    ppo:    { w: 92.9, d:  0.0, l:  7.1 },
-    mcts:   { w: 55.7, d:  3.6, l: 40.7 } },
-  { label: "Majority / Blitz",          note: "",
-    random: { w: 90.0, d:  6.4, l:  3.6 },
-    ppo:    { w: 85.7, d: 14.3, l:  0.0 },
-    mcts:   { w: 56.4, d: 32.1, l: 11.4 } },
-  { label: "Minority / Blitz",          note: "",
-    random: { w: 84.3, d: 12.1, l:  3.6 },
-    ppo:    { w: 78.6, d: 14.3, l:  7.1 },
-    mcts:   { w: 55.7, d: 10.7, l: 33.6 } },
-  { label: "Majority < 80% (K = 0.8)", note: "",
+  { label: "Majority < 80% (K = 0.8)",  blitz: false, note: "",
     random: { w: 54.3, d: 35.7, l: 10.0 },
     ppo:    { w: 64.3, d: 28.6, l:  7.1 },
     mcts:   { w: 44.3, d: 20.0, l: 35.7 } },
-  { label: "Minority > 20% (K = 0.2)", note: "",
-    random: { w: 77.9, d: 16.4, l:  5.7 },
-    ppo:    { w: 64.3, d: 14.3, l: 21.4 },
-    mcts:   { w: 45.0, d: 24.3, l: 30.7 } },
-  { label: "Majority < 60% (K = 0.6)", note: "narrow",
+  { label: "Majority < 60% (K = 0.6)",  blitz: false, note: "narrow",
     random: { w: 19.3, d: 73.6, l:  7.1 },
     ppo:    { w:  0.0, d: 92.9, l:  7.1 },
     mcts:   { w: 13.6, d: 67.9, l: 18.6 } },
-  { label: "Minority > 40% (K = 0.4)", note: "narrow",
+  { label: "Minority > 40% (K = 0.4)",  blitz: false, note: "narrow",
     random: { w: 18.6, d: 72.9, l:  8.6 },
     ppo:    { w: 14.3, d: 78.6, l:  7.1 },
     mcts:   { w:  8.6, d: 60.0, l: 31.4 } },
+  { label: "Minority > 20% (K = 0.2)",  blitz: false, note: "",
+    random: { w: 77.9, d: 16.4, l:  5.7 },
+    ppo:    { w: 64.3, d: 14.3, l: 21.4 },
+    mcts:   { w: 45.0, d: 24.3, l: 30.7 } },
+  { label: "Minority (K < 0.0)",         blitz: false, note: "",
+    random: { w: 94.3, d:  2.1, l:  3.6 },
+    ppo:    { w: 92.9, d:  0.0, l:  7.1 },
+    mcts:   { w: 55.7, d:  3.6, l: 40.7 } },
+  { label: "Majority / Blitz (K > 1.0)", blitz: true,  note: "",
+    random: { w: 90.0, d:  6.4, l:  3.6 },
+    ppo:    { w: 85.7, d: 14.3, l:  0.0 },
+    mcts:   { w: 56.4, d: 32.1, l: 11.4 } },
+  { label: "Minority / Blitz (K < 0.0)", blitz: true,  note: "",
+    random: { w: 84.3, d: 12.1, l:  3.6 },
+    ppo:    { w: 78.6, d: 14.3, l:  7.1 },
+    mcts:   { w: 55.7, d: 10.7, l: 33.6 } },
 ];
 
 function WDLBar({ wdl }: { wdl: WDL }) {
@@ -194,6 +188,11 @@ export default function Results() {
                       narrow
                     </span>
                   )}
+                  {c.blitz && (
+                    <span className="ml-2 text-[10px] text-gray-400 font-normal">
+                      10 turn limit
+                    </span>
+                  )}
                 </span>
                 <WDLBar wdl={c.random} />
                 <WDLBar wdl={c.ppo}    />
@@ -204,8 +203,7 @@ export default function Results() {
         </div>
 
         <p className="text-xs text-gray-400 mb-14">
-          MCTS-100 uses 100 simulations per move with full simulator access to K.
-          PPO is trained with 2,000 games of self-play. The Adaptive Minimax infers K from terminal outcomes alone.
+          Adaptive Minimax results are averaged across layouts after 2,000 training episodes (trained with terminal game outcomes alone). Full per-layout breakdown available in the paper.
         </p>
 
         {/* PPO Table */}
@@ -235,6 +233,11 @@ export default function Results() {
                       narrow
                     </span>
                   )}
+                  {c.blitz && (
+                    <span className="ml-2 text-[10px] text-gray-400 font-normal">
+                      10 turn limit
+                    </span>
+                  )}
                 </span>
                 <WDLBar wdl={c.random} />
                 <WDLBar wdl={c.am}     />
@@ -244,7 +247,7 @@ export default function Results() {
           </div>
         </div>
         <p className="text-xs text-gray-400 mb-14">
-          PPO results are averaged at 2,000 training episodes. Full per-layout breakdown available in the paper.
+          PPO results are averaged across layouts after 2,000 training episodes (trained with terminal game outcomes alone). Full per-layout breakdown available in the paper.
         </p>
 
         {/* Key takeaway */}
