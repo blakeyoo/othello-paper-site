@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   GameState, GameConfig, Player,
   createGame, validMoves, isValidMove, step,
@@ -151,6 +151,120 @@ type OpponentDifficulty = "easy" | "hard";
 
 const DEFAULT_CONFIG: GameConfig = { boardSize: [8, 8], obstacles: [], winCond: 1.01 };
 
+const GUESS_K_MAP = [-0.01, 0.2, 0.4, 0.6, 0.8, 1.01];
+// Handle positions on the bar (%) for each K index — symmetric around 50%
+const GUESS_HANDLE_PCT = [0, 20, 40, 60, 80, 100];
+
+function GuessBar({
+  guessIndex, onGuess, conditionRevealed, currentK, blackRatio,
+}: {
+  guessIndex: number | null;
+  onGuess: (i: number) => void;
+  conditionRevealed: boolean;
+  currentK: number;
+  blackRatio?: number;
+}) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+  const draggingHandle = useRef<"green" | "red">("green");
+
+  const zones = guessIndex !== null ? getZones(GUESS_K_MAP[guessIndex]) : [];
+  const handlePct = guessIndex !== null ? GUESS_HANDLE_PCT[guessIndex] : null;
+  const isCorrect = guessIndex !== null && GUESS_K_MAP[guessIndex] === currentK;
+
+  function getPctFromClientX(clientX: number): number {
+    if (!barRef.current) return 0;
+    const rect = barRef.current.getBoundingClientRect();
+    return Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+  }
+
+  function snapIndex(pct: number): number {
+    return GUESS_HANDLE_PCT.reduce((best, pos, i) =>
+      Math.abs(pos - pct) < Math.abs(GUESS_HANDLE_PCT[best] - pct) ? i : best, 0);
+  }
+
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    const pct = getPctFromClientX(e.clientX);
+    const greenPct = guessIndex !== null ? GUESS_HANDLE_PCT[guessIndex] : 50;
+    const redPct   = guessIndex !== null ? 100 - GUESS_HANDLE_PCT[guessIndex] : 50;
+    draggingHandle.current = Math.abs(pct - greenPct) <= Math.abs(pct - redPct) ? "green" : "red";
+    dragging.current = true;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragging.current) return;
+    const pct = getPctFromClientX(e.clientX);
+    // For the red handle, mirror the position so the index tracks the red side
+    onGuess(draggingHandle.current === "green" ? snapIndex(pct) : snapIndex(100 - pct));
+  }
+
+  function handlePointerUp() {
+    dragging.current = false;
+  }
+
+  return (
+    <div className="w-full">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
+        Guess The Winning Condition
+      </p>
+
+      <div
+        ref={barRef}
+        className="relative h-4 cursor-ew-resize select-none"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      >
+        {/* Colored zones */}
+        <div className="absolute inset-0 rounded-full bg-gray-200 overflow-hidden pointer-events-none">
+          {zones.map((z, i) => (
+            <div
+              key={i}
+              className={`absolute h-full ${ZONE_COLOR[z.type]}`}
+              style={{ left: `${z.lo}%`, width: `${z.hi - z.lo}%` }}
+            />
+          ))}
+        </div>
+
+        {/* Green zone end handle */}
+        {handlePct !== null && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white shadow-md z-10 pointer-events-none"
+            style={{ left: `${handlePct}%` }}
+          />
+        )}
+        {/* Red zone end handle (symmetric) */}
+        {handlePct !== null && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-red-400 border-2 border-white shadow-md z-10 pointer-events-none"
+            style={{ left: `${100 - handlePct}%` }}
+          />
+        )}
+        {/* Current disc ratio dot */}
+        {blackRatio !== undefined && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-indigo-500 border-2 border-white shadow z-20 pointer-events-none"
+            style={{ left: `${blackRatio}%` }}
+          />
+        )}
+      </div>
+
+      <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+        <span>0%</span>
+        <span>50%</span>
+        <span>100%</span>
+      </div>
+
+      {conditionRevealed && guessIndex !== null && (
+        <p className={`text-base text-center mt-2 font-bold ${isCorrect ? "text-emerald-500" : "text-red-500"}`}>
+          {isCorrect ? "✓ Correct!" : "✗ Wrong"}
+        </p>
+      )}
+    </div>
+  );
+}
+
 const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   easy: "Easy",
   medium: "Medium",
@@ -169,6 +283,7 @@ export default function OthelloDemo() {
   const [retryCount, setRetryCount]     = useState(0);
   const [aiThinking, setAiThinking]     = useState(false);
   const [hovered, setHovered]           = useState<[number, number] | null>(null);
+  const [guessIndex, setGuessIndex]     = useState<number | null>(5);
 
   const startNewGame = useCallback((diff: Difficulty) => {
     const { config, k } = randomEnv(diff);
@@ -178,6 +293,7 @@ export default function OthelloDemo() {
     setRevealedAtTrial(null);
     setRetryCount(0);
     setAiThinking(false);
+    setGuessIndex(5);
     setGame(createGame(config));
   }, []);
 
@@ -309,6 +425,15 @@ export default function OthelloDemo() {
                       : part
                   )}
                 </p>
+                <div className="w-full mt-1">
+                  <GuessBar
+                    guessIndex={guessIndex}
+                    onGuess={setGuessIndex}
+                    conditionRevealed={conditionRevealed}
+                    currentK={currentK}
+                    blackRatio={blackRatio}
+                  />
+                </div>
                 <button
                   onClick={retry}
                   className="mt-2 px-10 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors text-sm"
@@ -408,6 +533,9 @@ export default function OthelloDemo() {
               )}
             </div>
 
+            {/* Disc label */}
+            <span className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Disc Count / Ratio</span>
+
             {/* Scores */}
             <div className="space-y-2 text-sm font-medium text-gray-700">
               <div className="flex items-center gap-2">
@@ -424,18 +552,23 @@ export default function OthelloDemo() {
               </div>
             </div>
 
-            {/* Disc ratio bar */}
+            {/* Disc ratio bar — also shows guessed zones */}
             <div>
               <div className="relative h-2 w-full rounded-full bg-gray-200">
                 <div className="absolute inset-0 rounded-full overflow-hidden">
-                  {conditionRevealed && getZones(currentK).map((z, i) => (
-                    <div
-                      key={i}
-                      className={`absolute h-full ${ZONE_COLOR[z.type]}`}
-                      style={{ left: `${z.lo}%`, width: `${z.hi - z.lo}%` }}
-                    />
-                  ))}
+                  {conditionRevealed
+                    ? getZones(currentK).map((z, i) => (
+                        <div key={i} className={`absolute h-full ${ZONE_COLOR[z.type]}`}
+                          style={{ left: `${z.lo}%`, width: `${z.hi - z.lo}%` }} />
+                      ))
+                    : (game.done || retryCount > 0) && guessIndex !== null
+                    ? getZones(GUESS_K_MAP[guessIndex]).map((z, i) => (
+                        <div key={i} className={`absolute h-full ${ZONE_COLOR[z.type]} opacity-50`}
+                          style={{ left: `${z.lo}%`, width: `${z.hi - z.lo}%` }} />
+                      ))
+                    : null}
                 </div>
+                {/* Current disc ratio dot */}
                 <div
                   className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-indigo-500 shadow z-10 transition-all duration-300"
                   style={{ left: `${blackRatio}%` }}

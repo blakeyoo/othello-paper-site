@@ -101,7 +101,7 @@ function WDLBar({ wdl }: { wdl: WDL }) {
 
 export default function Results() {
   return (
-    <section id="results" className="py-20 px-6 border-b border-gray-100 bg-white">
+    <section id="results" className="py-20 px-6 border-b border-gray-100 bg-gray-50">
       <div className="max-w-5xl mx-auto">
         <h2 className="text-2xl font-bold mb-1 text-gray-900">Possible Approaches</h2>
         <p className="text-gray-500 text-sm mb-12">What works, what doesn't, and where the open problems are</p>

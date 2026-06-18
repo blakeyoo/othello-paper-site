@@ -3,6 +3,7 @@ import Challenge from "@/components/Challenge";
 import OthelloDemo from "@/components/OthelloDemo";
 import Benchmark from "@/components/Benchmark";
 import Environment from "@/components/Environment";
+import HowToUse from "@/components/HowToUse";
 import Results from "@/components/Results";
 
 export default function Home() {
@@ -13,6 +14,7 @@ export default function Home() {
       <Challenge />
       <Environment />
       <Benchmark />
+      <HowToUse />
       <Results />
       <footer className="border-t border-gray-100 py-8 text-center text-sm text-gray-400">
         © 2026 Byunghwa Yoo, Sundong Kim, Kyung-Joong Kim · GIST Department of AI Convergence

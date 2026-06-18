@@ -102,7 +102,7 @@ function BackgroundBoard() {
 
   return (
     <div
-      className="relative border border-white/5 shrink-0"
+      className="relative border-2 border-white/30 shrink-0 overflow-hidden"
       style={{
         display: "grid",
         gridTemplateColumns: `repeat(8, ${CELL_PX}px)`,
@@ -160,8 +160,8 @@ export default function Hero() {
 
       {/* Background boards */}
       <div className="absolute inset-0 overflow-hidden opacity-70">
-        <div className="flex flex-wrap">
-          {Array.from({ length: 50 }, (_, i) => (
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(16, ${BOARD_PX}px)` }}>
+          {Array.from({ length: 64 }, (_, i) => (
             <BackgroundBoard key={i} />
           ))}
         </div>
