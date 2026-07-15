@@ -156,13 +156,12 @@ const GUESS_K_MAP = [-0.01, 0.2, 0.4, 0.6, 0.8, 1.01];
 const GUESS_HANDLE_PCT = [0, 20, 40, 60, 80, 100];
 
 function GuessBar({
-  guessIndex, onGuess, conditionRevealed, currentK, blackRatio,
+  guessIndex, onGuess, blackRatio, disabled,
 }: {
   guessIndex: number | null;
   onGuess: (i: number) => void;
-  conditionRevealed: boolean;
-  currentK: number;
   blackRatio?: number;
+  disabled?: boolean;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
@@ -170,7 +169,6 @@ function GuessBar({
 
   const zones = guessIndex !== null ? getZones(GUESS_K_MAP[guessIndex]) : [];
   const handlePct = guessIndex !== null ? GUESS_HANDLE_PCT[guessIndex] : null;
-  const isCorrect = guessIndex !== null && GUESS_K_MAP[guessIndex] === currentK;
 
   function getPctFromClientX(clientX: number): number {
     if (!barRef.current) return 0;
@@ -184,6 +182,7 @@ function GuessBar({
   }
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (disabled) return;
     const pct = getPctFromClientX(e.clientX);
     const greenPct = guessIndex !== null ? GUESS_HANDLE_PCT[guessIndex] : 50;
     const redPct   = guessIndex !== null ? 100 - GUESS_HANDLE_PCT[guessIndex] : 50;
@@ -193,7 +192,7 @@ function GuessBar({
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!dragging.current) return;
+    if (disabled || !dragging.current) return;
     const pct = getPctFromClientX(e.clientX);
     // For the red handle, mirror the position so the index tracks the red side
     onGuess(draggingHandle.current === "green" ? snapIndex(pct) : snapIndex(100 - pct));
@@ -211,7 +210,8 @@ function GuessBar({
 
       <div
         ref={barRef}
-        className="relative h-4 cursor-ew-resize select-none"
+        className={`relative h-4 select-none ${disabled ? "" : "cursor-ew-resize"}`}
+        style={{ touchAction: "none" }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -230,16 +230,20 @@ function GuessBar({
         {/* Green zone end handle */}
         {handlePct !== null && (
           <div
-            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white shadow-md z-10 pointer-events-none"
+            className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-emerald-500 border-2 border-white shadow-md z-10 pointer-events-none flex items-center justify-center ${!disabled ? "ring-4 ring-emerald-300 animate-[pulse_0.8s_ease-in-out_infinite]" : ""}`}
             style={{ left: `${handlePct}%` }}
-          />
+          >
+            {!disabled && <span className="text-white text-sm font-bold leading-none select-none">↔</span>}
+          </div>
         )}
         {/* Red zone end handle (symmetric) */}
         {handlePct !== null && (
           <div
-            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-red-400 border-2 border-white shadow-md z-10 pointer-events-none"
+            className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-red-400 border-2 border-white shadow-md z-10 pointer-events-none flex items-center justify-center ${!disabled ? "ring-4 ring-red-300 animate-[pulse_0.8s_ease-in-out_infinite]" : ""}`}
             style={{ left: `${100 - handlePct}%` }}
-          />
+          >
+            {!disabled && <span className="text-white text-sm font-bold leading-none select-none">↔</span>}
+          </div>
         )}
         {/* Current disc ratio dot */}
         {blackRatio !== undefined && (
@@ -256,11 +260,12 @@ function GuessBar({
         <span>100%</span>
       </div>
 
-      {conditionRevealed && guessIndex !== null && (
-        <p className={`text-base text-center mt-2 font-bold ${isCorrect ? "text-emerald-500" : "text-red-500"}`}>
-          {isCorrect ? "✓ Correct!" : "✗ Wrong"}
-        </p>
-      )}
+      <div className="flex items-center gap-4 mt-2 text-[10px] text-gray-400 flex-wrap">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />Win zone</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" />Lose zone</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300 inline-block" />Draw zone</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />Your Disc Ratio</span>
+      </div>
     </div>
   );
 }
@@ -278,8 +283,8 @@ export default function OthelloDemo() {
   const [game, setGame]                 = useState<GameState>(() => createGame(DEFAULT_CONFIG));
   const [currentConfig, setCurrentConfig] = useState<GameConfig>(DEFAULT_CONFIG);
   const [currentK, setCurrentK]         = useState<number>(1.01);
-  const [conditionRevealed, setConditionRevealed] = useState(false);
-  const [revealedAtTrial, setRevealedAtTrial]     = useState<number | null>(null);
+  const [guessSubmitted, setGuessSubmitted] = useState(false);
+  const [solved, setSolved]             = useState(false);
   const [retryCount, setRetryCount]     = useState(0);
   const [aiThinking, setAiThinking]     = useState(false);
   const [hovered, setHovered]           = useState<[number, number] | null>(null);
@@ -289,8 +294,8 @@ export default function OthelloDemo() {
     const { config, k } = randomEnv(diff);
     setCurrentConfig(config);
     setCurrentK(k);
-    setConditionRevealed(false);
-    setRevealedAtTrial(null);
+    setGuessSubmitted(false);
+    setSolved(false);
     setRetryCount(0);
     setAiThinking(false);
     setGuessIndex(5);
@@ -300,8 +305,16 @@ export default function OthelloDemo() {
   const retry = useCallback(() => {
     setRetryCount((n) => n + 1);
     setAiThinking(false);
+    setGuessSubmitted(false);
     setGame(createGame(currentConfig));
   }, [currentConfig]);
+
+  const submitGuess = useCallback(() => {
+    setGuessSubmitted(true);
+    if (guessIndex !== null && GUESS_K_MAP[guessIndex] === currentK) {
+      setSolved(true);
+    }
+  }, [guessIndex, currentK]);
 
   // Randomise on first client render (avoids SSR hydration mismatch)
   useEffect(() => { startNewGame("easy"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -398,7 +411,9 @@ export default function OthelloDemo() {
             const isFirstTrial = retryCount === 0;
             const isEqualDraw = winner === 0 && scores.black === scores.white;
             const subText =
-              winner === -1 && isFirstTrial && isMinority
+              solved
+                ? "Can you win again? Did you find the optimal strategy?"
+                : winner === -1 && isFirstTrial && isMinority
                 ? "Not a Bug — This is NOT the typical Othello you know."
                 : winner === -1 && isFirstTrial && !isMinority
                 ? "Can you beat the AI in the next round?"
@@ -415,8 +430,9 @@ export default function OthelloDemo() {
                 : isEqualDraw
                 ? `You tried ${retryCount + 1} times — Same number of discs.`
                 : `You tried ${retryCount + 1} times — You are on the special draw zone.`;
+            const isGuessCorrect = guessIndex !== null && GUESS_K_MAP[guessIndex] === currentK;
             return (
-              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/95 rounded gap-3 px-8 text-center">
+              <div className={`absolute inset-0 z-10 flex flex-col items-center justify-center rounded gap-3 px-8 text-center ${guessSubmitted ? "bg-white/80" : "bg-white/95"}`}>
                 <p className={`text-4xl font-black ${resultColor}`}>{resultText}</p>
                 <p className="text-sm text-gray-500">
                   {subText.split(/(SPECIAL)/g).map((part, i) =>
@@ -429,30 +445,48 @@ export default function OthelloDemo() {
                   <GuessBar
                     guessIndex={guessIndex}
                     onGuess={setGuessIndex}
-                    conditionRevealed={conditionRevealed}
-                    currentK={currentK}
+                    disabled={guessSubmitted || solved}
                     blackRatio={blackRatio}
                   />
                 </div>
-                <button
-                  onClick={retry}
-                  className="mt-2 px-10 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors text-sm"
-                >
-                  Try Again →
-                </button>
-                <button
-                  onClick={() => startNewGame(difficulty)}
-                  className="text-gray-400 hover:text-gray-600 text-sm transition-colors"
-                >
-                  New Game
-                </button>
-                {retryCount + 1 >= 2 && !conditionRevealed && (
+                {solved && (
+                  <p className="relative z-40 text-sm font-semibold text-indigo-600">
+                    {describeK(currentK).label}
+                  </p>
+                )}
+                {!guessSubmitted && !solved ? (
                   <button
-                    onClick={() => { setConditionRevealed(true); setRevealedAtTrial(retryCount + 1); }}
-                    className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg transition-colors text-sm"
+                    onClick={submitGuess}
+                    className="relative z-40 mt-2 px-10 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-semibold rounded-lg transition-colors text-sm"
                   >
-                    Reveal Win Condition
+                    Submit Guess
                   </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={retry}
+                      className="relative z-40 mt-2 px-10 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors text-sm"
+                    >
+                      Try Again →
+                    </button>
+                    <button
+                      onClick={() => startNewGame(difficulty)}
+                      className={
+                        solved
+                          ? "relative z-40 px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg transition-colors text-sm"
+                          : "relative z-40 text-gray-400 hover:text-gray-600 text-sm transition-colors"
+                      }
+                    >
+                      New Game
+                    </button>
+                  </>
+                )}
+                {guessSubmitted && (
+                  <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/80 rounded">
+                    <p className={`text-2xl font-black ${isGuessCorrect ? "text-emerald-500" : "text-red-500"}`}>
+                      {isGuessCorrect ? "✓ Correct!" : "✗ Wrong! Try Again?"}
+                    </p>
+                  </div>
                 )}
               </div>
             );
@@ -514,9 +548,6 @@ export default function OthelloDemo() {
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Trial</span>
               <div className="flex items-center gap-2">
-                {revealedAtTrial !== null && (
-                  <span className="text-xs font-normal text-gray-400">(Revealed at Trial {revealedAtTrial})</span>
-                )}
                 <span className="text-base font-bold text-white bg-indigo-600/80 px-3 py-1 rounded-md">
                   {retryCount + 1}
                 </span>
@@ -526,7 +557,7 @@ export default function OthelloDemo() {
             {/* Winning Condition — always visible */}
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Win Condition</span>
-              {conditionRevealed ? (
+              {solved ? (
                 <span className="text-sm font-semibold text-indigo-600">{describeK(currentK).label}</span>
               ) : (
                 <span className="text-sm font-bold text-white bg-red-500/80 px-3 py-1 rounded-md">???</span>
@@ -556,7 +587,7 @@ export default function OthelloDemo() {
             <div>
               <div className="relative h-2 w-full rounded-full bg-gray-200">
                 <div className="absolute inset-0 rounded-full overflow-hidden">
-                  {conditionRevealed
+                  {solved
                     ? getZones(currentK).map((z, i) => (
                         <div key={i} className={`absolute h-full ${ZONE_COLOR[z.type]}`}
                           style={{ left: `${z.lo}%`, width: `${z.hi - z.lo}%` }} />
